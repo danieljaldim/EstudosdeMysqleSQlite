@@ -1,76 +1,101 @@
-# Importa o módulo sqlite3, que permite interagir com o banco de dados SQLite
-import sqlite3
+import sqlite3  # Importa a biblioteca SQLite3 para interagir com o banco de dados SQLite
+from pathlib import Path  # Importa Path para trabalhar com caminhos de arquivos
 
-# Importa a classe Path da biblioteca pathlib, que facilita a manipulação de caminhos de arquivos
-from pathlib import Path
-
-# Define o diretório raiz do projeto como o local onde o arquivo atual está
+# Define o diretório raiz (ROOT_DIR) como o diretório pai do arquivo atual
 ROOT_DIR = Path(__file__).parent
 
-# Nome do banco de dados SQLite que será criado ou utilizado
+# Define o nome do arquivo de banco de dados e o caminho completo para ele
 DB_NAME = 'db.sqlite3'
-
-# Caminho completo do arquivo do banco de dados (ROOT_DIR + DB_NAME)
 DB_FILE = ROOT_DIR / DB_NAME
 
-# Nome da tabela a ser criada ou manipulada
+# Nome da tabela que será usada no banco de dados
 TABLE_NAME = 'customers'
 
-# Cria uma conexão com o banco de dados (ou cria o banco de dados se ele não existir)
+# Conecta ao banco de dados (ou cria, se não existir) e obtém um cursor para executar comandos SQL
 connection = sqlite3.connect(DB_FILE)
-
-# Cria um cursor, que será utilizado para executar comandos SQL no banco de dados
 cursor = connection.cursor()
 
-# ALERTA: Executando um DELETE sem cláusula WHERE, o que pode remover todos os dados da tabela
+# CRUD - Create, Read, Update, Delete
+# SQL - Comandos de inserção, leitura, atualização e deleção
+
+# CUIDADO: delete sem WHERE. Remove todos os dados da tabela 'customers'
 cursor.execute(
     f'DELETE FROM {TABLE_NAME}'
 )
 
-# Reseta o autoincremento da coluna "id" para 1, limpando a sequência do banco de dados
+# DELETE mais cuidadoso: Remove o registro de auto incremento (sqlite_sequence) relacionado à tabela
 cursor.execute(
     f'DELETE FROM sqlite_sequence WHERE name="{TABLE_NAME}"'
 )
-
-# Aplica as mudanças feitas até agora no banco de dados
+# Confirma as mudanças no banco de dados
 connection.commit()
 
-# Cria a tabela se ela ainda não existir, com as colunas 'id', 'name' e 'weight'
+# Cria a tabela 'customers' com as colunas 'id', 'name' e 'weight', se não existir
 cursor.execute(
     f'CREATE TABLE IF NOT EXISTS {TABLE_NAME} '
     '('
-    'id INTEGER PRIMARY KEY AUTOINCREMENT,'  # 'id' como chave primária, que auto-incrementa
-    'name TEXT,'  # Coluna 'name' do tipo texto
-    'weight REAL'  # Coluna 'weight' do tipo número real (flutuante)
+    'id INTEGER PRIMARY KEY AUTOINCREMENT,'  # id autoincrementado
+    'name TEXT,'  # Nome do cliente
+    'weight REAL'  # Peso do cliente
     ')'
 )
+connection.commit()  # Confirma a criação da tabela
 
-# Aplica as mudanças ao banco de dados (criação da tabela)
-connection.commit()
-
-# ALERTA: Código suscetível a SQL Injection, ao usar a interpolação de strings diretamente
-cursor.execute(
-    sql = (
-        f'INSERT INTO {TABLE_NAME} '  # Insere dados na tabela 'customers'
-        '(id, name, weight) '  # Especifica as colunas 'id', 'name' e 'weight'
-        '(name, weight) '  # Aqui há um erro de sintaxe: repetição de colunas
-        'VALUES '  # Início da declaração de valores
-        '(NULL, "Helena", 4), (NULL, "Eduardo", 10)'  # Insere valores estáticos para 'Helena' e 'Eduardo'
-        '(?, ?)'  # Insere valores parametrizados para evitar SQL Injection
-    )
+# Prepara a instrução SQL para inserir dados na tabela
+sql = (
+    f'INSERT INTO {TABLE_NAME} '
+    '(name, weight) '  # Define as colunas 'name' e 'weight' para inserção
+    'VALUES '
+    '(:nome, :peso)'  # Valores serão passados como dicionário (nome e peso)
 )
 
-# Executa o SQL com valores seguros para 'Joana' e '4' usando parâmetros ao invés de interpolação direta
-cursor.execute(sql, ['Joana', 4])
+# Insere um único registro na tabela usando o método 'execute' com um dicionário de valores
+cursor.execute(sql, {'nome': 'Sem nome', 'peso': 3})
 
-# Aplica as mudanças ao banco de dados (inserção dos dados)
-connection.commit()
+# Insere múltiplos registros de uma só vez usando 'executemany'
+cursor.executemany(sql, (
+    {'nome': 'Joãozinho', 'peso': 3},  # Insere 'Joãozinho' com peso 3
+    {'nome': 'Maria', 'peso': 2},  # Insere 'Maria' com peso 2
+    {'nome': 'Helena', 'peso': 4},  # Insere 'Helena' com peso 4
+    {'nome': 'Joana', 'peso': 5},  # Insere 'Joana' com peso 5
+))
+connection.commit()  # Confirma as inserções
 
-# Imprime a string SQL para ver o comando que foi executado
-print(sql)
+# Ponto de entrada principal do script
+if __name__ == '__main__':
+    print(sql)  # Exibe a instrução SQL
 
-# Fecha o cursor, que é usado para interagir com o banco de dados
-cursor.close()
+    # Deleta o registro da tabela onde o 'id' é 3
+    cursor.execute(
+        f'DELETE FROM {TABLE_NAME} '
+        'WHERE id = "3"'
+    )
 
-# Fecha a conexão com o banco de dados para liberar os recursos
-connection.close()
+    # Deleta o registro da tabela onde o 'id' é 1
+    cursor.execute(
+        f'DELETE FROM {TABLE_NAME} '
+        'WHERE id = 1'
+    )
+    connection.commit()  # Confirma as deleções
+
+    # Atualiza o registro com 'id' 2, mudando 'name' e 'weight'
+    cursor.execute(
+        f'UPDATE {TABLE_NAME} '
+        'SET name="QUALQUER", weight=67.89 '  # Define novos valores para 'name' e 'weight'
+        'WHERE id = 2'  # Atualiza onde o 'id' é 2
+    )
+    connection.commit()  # Confirma a atualização
+
+    # Seleciona todos os registros da tabela
+    cursor.execute(
+        f'SELECT * FROM {TABLE_NAME}'
+    )
+
+    # Itera sobre os registros e exibe 'id', 'name', e 'weight' para cada um
+    for row in cursor.fetchall():
+        _id, name, weight = row
+        print(_id, name, weight)  # Exibe os dados de cada linha
+
+    # Fecha o cursor e a conexão com o banco de dados
+    cursor.close()
+    connection.close()
